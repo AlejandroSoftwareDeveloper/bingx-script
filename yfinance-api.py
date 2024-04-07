@@ -1,9 +1,9 @@
 import yfinance as yf
 import plotext as plt
-import pandas as pd
-from asyncio import *
 import asyncio
 import requests
+from asyncio import *
+from claseLongSpot import APIClass
 
 
 # Url de historico de BTC hasta un año
@@ -48,19 +48,39 @@ data = yf.download(
     # interval="30m",  #30 minutos
 )
 
-dates = plt.datetimes_to_string(data.index)
-plt.clf()
-plt.theme("dark")
-plt.candlestick(dates, data)
-plt.title(tickers + " Stock Price CandleSticks from last 60 days")
-plt.show()
-data.to_json(file_name)
-print(
-    "Los datos historicos de {} estan almacenados en el archivo {} \n".format(
-        tickers, file_name
-    )
-)
-print(data)
 
-print("Los siguientes datos son los historicos anuales del BTC-USD \n")
-asyncio.run(main=main())
+# Visualize current and historical data
+
+# dates = plt.datetimes_to_string(data.index)
+# plt.clf()
+# plt.theme("dark")
+# plt.candlestick(dates, data)
+# plt.title(tickers + " Stock Price CandleSticks from last 60 days")
+# plt.show()
+# data.to_json(file_name)
+# print(
+#     "Los datos historicos de {} estan almacenados en el archivo {} \n".format(
+#         tickers, file_name
+#     )
+# )
+
+# print("Los siguientes datos son los historicos anuales del BTC-USD \n")
+# asyncio.run(main=main())
+
+# Set spot-long
+# api = APIClass(
+#     {},
+#     "/openApi/v1/spot/orders",
+#     "POST"
+#     {
+#         "symbol": "BTC/USDT",
+#         "side": "BUY",
+#         "type": "LIMIT",
+#         "price": "40000",
+#         "quantity": "1",
+#     },
+# )
+
+# api = APIClass(
+#     {}, "/openApi/swap/v2/quote/depth", "GET", {"symbol": "SHIB-USDT", "limit": "5"}
+# )
