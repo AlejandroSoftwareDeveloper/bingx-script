@@ -1,5 +1,6 @@
 from binance.client import Client  # pip install python-binance.py
 from binance.enums import *
+import time
 
 # crea tu cuenta en binance
 API_KEY = ""
@@ -45,23 +46,27 @@ class EMA_CROSS_CLASS:
             print("no se pudo obtener el historial de las velas")
 
     def calcular_emas_cross(self, periodo1, periodo2, periodo3, ticket):
-        emap1, emap2, emap3 = [
-            self.ema_intervalo_1hs(x, ticket) for x in [periodo1, periodo2, periodo3]
-        ]
-        if emap1 > emap2 and emap1 > emap3:
-            print(
-                "Ticker "
-                + ticket
-                + "Ema rapida por encima de la otras dos - posible movimiento alcista."
-            )
-            return True
-        if emap1 < emap2 and emap1 < emap3:
-            print(
-                "Ticker "
-                + ticket
-                + "Ema rapida por debajo de la otras dos - posible movimiento bajista."
-            )
-            return True
+        cambio = False
+        while not cambio:
+            emap1, emap2, emap3 = [
+                self.ema_intervalo_1hs(x, ticket)
+                for x in [periodo1, periodo2, periodo3]
+            ]
+            if emap1 > emap2 and emap1 > emap3:
+                print(
+                    "Ticker "
+                    + ticket
+                    + "Ema rapida por encima de la otras dos - posible movimiento alcista."
+                )
+                return True
+            if emap1 < emap2 and emap1 < emap3:
+                print(
+                    "Ticker "
+                    + ticket
+                    + "Ema rapida por debajo de la otras dos - posible movimiento bajista."
+                )
+                return True
+            time.sleep(2)
         print("No se puede verificar la estrategia")
         return False
 
