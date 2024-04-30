@@ -1,56 +1,95 @@
-﻿from datetime import datetime, timedelta
-import yfinance as yf
-import pandas as pd
-import numpy as np
+﻿import time
 import datetime
-import time
-import os
-
-today = datetime.date.today()
-current_date = today.strftime("%Y-%m-%d")
-# No se puede captura mas de siete dias con yfinance
-# five_years_ago = today - timedelta(days=365 * 5)
-seven_days = today - timedelta(days=7)
-
-old_value = 0
-new_value = 0
-buy_time = False
+from datetime import timedelta
+import yfinance as yf
+import threading
+from send_email import EmailSender
 
 
-def calculate_rsi(df, window=14):
-    delta = df["Close"].diff()
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    avg_gain = pd.Series(gain).rolling(window, min_periods=1).mean()
-    avg_loss = pd.Series(loss).rolling(window, min_periods=1).mean()
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+class RSIAnalyzer:
+    COINS = ["ETH-USD", "BTC-USD", "SOL-USD"]
+    RSI_WINDOW = 14
+    ANALYSIS_DAYS = 14
+    MIN_BUY_DIFFERENCE = 2
+    MIN_RSI_THRESHOLD = 32
+    RSI_CHANGE_THRESHOLD = 3
 
+    def init(self, email_sender: EmailSender):
+        self.rsi_values = {coin: None for coin in self.COINS}
+        self.min_rsi_values = {coin: None for coin in self.COINS}
+        self.min_rsi_last_values = {coin: 100 for coin in self.COINS}
+        self.email_sender = email_sender
 
-def estimation_of_rsi_buy_condition(diferencia_minima_de_compra=2):
-    global old_value, new_value, buy_time
-    while True:
-        os.system("cls")
-        btc_df = yf.download(
-            "BTC-USD", start=seven_days, end=current_date, interval="1m"
+    def calculate_rsi(self, symbol):
+        today = datetime.date.today()
+        current_date = today.strftime("%Y-%m-%d")
+        seven_days = today - timedelta(days=self.ANALYSIS_DAYS)
+        # Download price data for the coin
+        stock_data = yf.download(
+            symbol, interval="1d", start=seven_days, end=current_date
         )
-        # Hasta aqui obtengo el ultimo valor
-        actual_value = calculate_rsi(btc_df).tail().iloc[-1]
-        print(btc_df, calculate_rsi(btc_df))
-        if actual_value < 30 and not buy_time:
-            if old_value == 0 or actual_value - old_value < 0:
-                old_value = actual_value
-            elif actual_value - old_value >= diferencia_minima_de_compra:
-                buy_time = True
-                break
-        print(
-            "El valor actual del rsi es {} el valor anterior es de {} y su diferencia {}".format(
-                actual_value, old_value, actual_value - old_value
-            )
-        )
-        time.sleep(2)
-    return (True, actual_value)
+        # Calculate RSI with a 14-day period
+        delta = stock_data["Close"].diff(1)
+        gain = delta.where(delta > 0, 0)
+        loss = -delta.where(delta < 0, 0)
+        avg_gain = gain.ewm(span=self.RSI_WINDOW, adjust=True).mean()
+        avg_loss = loss.ewm(span=self.RSI_WINDOW, adjust=True).mean()
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+
+        # Return the latest RSI value
+        return rsi.iloc[-1]
+
+    def update_rsi(self, symbol: str):
+        while True:
+            try:
+                current_rsi = self.calculate_rsi(symbol)
+                self.rsi_values[symbol] = current_rsi
+                if (
+                    self.min_rsi_values[symbol] is None
+                    or current_rsi < self.min_rsi_values[symbol]
+                ):
+                    self.min_rsi_values[symbol] = current_rsi
+                time.sleep(3)
+            except Exception as e:
+                print(e)
+
+    def analyze_coins(self):
+        threads = []
+        for coin in self.COINS:
+            thread = threading.Thread(target=self.update_rsi, args=(coin,), daemon=True)
+            thread.start()
+            threads.append(thread)
+
+        while True:
+            for coin, rsi_value in self.rsi_values.items():
+                min_rsi = self.min_rsi_values[coin]
+                if (
+                    rsi_value is not None
+                    and rsi_value < self.MIN_RSI_THRESHOLD
+                    and rsi_value < self.min_rsi_last_values[coin]
+                ):
+                    self.min_rsi_last_values[coin] = rsi_value
+                    self.email_sender.send_email(
+                        "navegabit.2020@gmail.com",
+                        "navegabit.2020@gmail.com",
+                        f"Moneda {coin} en sobre Venta. " f"Precio: {rsi_value}",
+                    )
+                if (
+                    min_rsi is not None
+                    and (rsi_value - self.min_rsi_last_values[coin])
+                    >= self.RSI_CHANGE_THRESHOLD
+                ):
+                    self.min_rsi_last_values[coin] = rsi_value
+                    self.email_sender.send_email(
+                        "navegabit.2020@gmail.com",
+                        "navegabit.2020@gmail.com",
+                        f"Momento de compra para moneda {coin}. Precio: "
+                        f"{rsi_value}",
+                    )
+            time.sleep(10)
 
 
-estimation_of_rsi_buy_condition()
+# Usage of the RSIAnalyzer class
+analyzer = RSIAnalyzer(EmailSender())
+analyzer.analyze_coins()
